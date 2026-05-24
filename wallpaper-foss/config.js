@@ -1,6 +1,6 @@
 window.CONFIG = {
   // Base folder for all local assets
-  basePath: "file:///home/arch/Downloads/wallpaper-foss/",
+  basePath: "file://[ABSOLUTE PATH HERE]",
 
   // Backgrounds
   wallpaper: "macos_wallpaper.png",

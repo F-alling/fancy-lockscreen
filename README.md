@@ -5,7 +5,6 @@
 
 # Install guide:
 
-## Note: I am not responsible if you mess up anything on your KDE install using this.
 
 1: Download the project as a .zip file by clicking [here](https://github.com/F-alling/fancy-lockscreen/archive/refs/heads/main.zip)
 
@@ -37,6 +36,9 @@
 
 
 
+## Note: 
+- I am not responsible if you mess up anything on your KDE install using this.
+- This is currently only for KDE Plasma 6, if you want support for your DE fork it.
 
 
 

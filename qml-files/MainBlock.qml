@@ -1,0 +1,158 @@
+/*
+    SPDX-FileCopyrightText: 2016 David Edmundson <davidedmundson@kde.org>
+
+    SPDX-License-Identifier: LGPL-2.0-or-later
+*/
+
+import QtQuick
+
+import QtQuick.Layouts
+import QtQuick.Controls as QQC2
+
+import org.kde.plasma.components as PlasmaComponents3
+import org.kde.plasma.extras as PlasmaExtras
+import org.kde.kirigami as Kirigami
+import org.kde.kscreenlocker as ScreenLocker
+
+import org.kde.breeze.components
+
+SessionManagementScreen {
+    id: sessionManager
+
+    readonly property alias mainPasswordBox: passwordBox
+    property bool lockScreenUiVisible: false
+    property alias showPassword: passwordBox.showPassword
+
+    //the y position that should be ensured visible when the on screen keyboard is visible
+    property int visibleBoundary: mapFromItem(loginButton, 0, 0).y
+    onHeightChanged: visibleBoundary = mapFromItem(loginButton, 0, 0).y + loginButton.height + Kirigami.Units.smallSpacing
+    /*
+     * Login has been requested with the following username and password
+     * If username field is visible, it will be taken from that, otherwise from the "name" property of the currentIndex
+     */
+    signal passwordResult(string password)
+
+    onUserSelected: {
+        const nextControl = (passwordBox.visible ? passwordBox : loginButton);
+        // Don't startLogin() here, because the signal is connected to the
+        // Escape key as well, for which it wouldn't make sense to trigger
+        // login. Using TabFocusReason, so that the loginButton gets the
+        // visual highlight.
+        nextControl.forceActiveFocus(Qt.TabFocusReason);
+    }
+
+    function startLogin() {
+        const password = passwordBox.text
+
+        // This is partly because it looks nicer, but more importantly it
+        // works round a Qt bug that can trigger if the app is closed with a
+        // TextField focused.
+        //
+        // See https://bugreports.qt.io/browse/QTBUG-55460
+        loginButton.forceActiveFocus();
+        passwordResult(password);
+    }
+Item {
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+
+    Item {
+        id: passwordContainer
+
+        width: parent.width / 1.2
+        height: passwordRow.implicitHeight
+
+        // 20% right of center:
+        x: (parent.width - width) * 2 + parent.width / 1.1
+        anchors.verticalCenter: parent.verticalCenter
+
+        RowLayout {
+            id: passwordRow
+            anchors.fill: parent
+
+            PlasmaExtras.PasswordField {
+                id: passwordBox
+                Layout.fillWidth: true
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
+                text: PasswordSync.password
+
+                placeholderText: i18ndc("plasma_shell_org.kde.plasma.desktop",
+                                        "@info:placeholder in text field",
+                                        "Password")
+
+                focus: true
+                enabled: !authenticator.graceLocked
+                cursorVisible: visible
+
+                onAccepted: {
+                    if (sessionManager.lockScreenUiVisible) {
+                        sessionManager.startLogin();
+                    }
+                }
+            }
+
+            Binding {
+                target: PasswordSync
+                property: "password"
+                value: passwordBox.text
+            }
+
+            PlasmaComponents3.Button {
+                id: loginButton
+                Layout.preferredHeight: passwordBox.implicitHeight
+                Layout.preferredWidth: loginButton.Layout.preferredHeight
+
+                icon.name: LayoutMirroring.enabled ? "go-previous" : "go-next"
+
+                onClicked: sessionManager.startLogin()
+                Keys.onEnterPressed: clicked()
+                Keys.onReturnPressed: clicked()
+            }
+        }
+    }
+}
+
+    component FailableLabel : PlasmaComponents3.Label {
+        id: _failableLabel
+        required property int kind
+        required property string label
+
+        visible: authenticator.authenticatorTypes & kind
+        text: label
+        textFormat: Text.PlainText
+        horizontalAlignment: Text.AlignHCenter
+        Layout.fillWidth: true
+
+        RejectPasswordAnimation {
+            id: _rejectAnimation
+            target: _failableLabel
+            onFinished: _timer.restart()
+        }
+
+        Connections {
+            target: authenticator
+            function onNoninteractiveError(kind, authenticator) {
+                if (kind & _failableLabel.kind) {
+                    _failableLabel.text = Qt.binding(() => authenticator.errorMessage)
+                    _rejectAnimation.start()
+                }
+            }
+        }
+        Timer {
+            id: _timer
+            interval: Kirigami.Units.humanMoment
+            onTriggered: {
+                _failableLabel.text = Qt.binding(() => _failableLabel.label)
+            }
+        }
+    }
+
+    FailableLabel {
+        kind: ScreenLocker.Authenticator.Fingerprint
+        label: i18ndc("plasma_shell_org.kde.plasma.desktop", "@info:usagetip", "(or scan your fingerprint on the reader)")
+    }
+    FailableLabel {
+        kind: ScreenLocker.Authenticator.Smartcard
+        label: i18ndc("plasma_shell_org.kde.plasma.desktop", "@info:usagetip", "(or scan your smartcard)")
+    }
+}
